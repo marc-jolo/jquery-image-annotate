@@ -19,7 +19,11 @@
         this.editable = opts.editable;
         this.useAjax = opts.useAjax;
         this.notes = opts.notes;
-
+        this.ajaxOptions = opts.ajaxOptions;
+        this.labelOk = opts.labelOk;
+        this.labelDelete = opts.labelDelete;
+		this.labelCancel = opts.labelCancel;
+		
         // Add the canvas
         this.canvas = $('<div class="image-annotate-canvas"><div class="image-annotate-view"></div><div class="image-annotate-edit"><div class="image-annotate-edit-area"></div></div></div>');
         this.canvas.children('.image-annotate-edit').hide();
@@ -79,7 +83,11 @@
         deleteUrl: 'your-delete.rails',
         editable: true,
         useAjax: true,
-        notes: new Array()
+        notes: new Array(),
+        ajaxData: {},
+        labelOk: 'Ok',
+        labelCancel: 'Annuler',
+        labelDelete: 'Supprimer'
     };
 
     $.fn.annotateImage.clear = function(image) {
@@ -97,9 +105,15 @@
         ///		Loads the annotations from the "getUrl" property passed in on the
         ///     options object.
         ///	</summary>
-        $.getJSON(image.getUrl + '?ticks=' + $.fn.annotateImage.getTicks(), function(data) {
-            image.notes = data;
-            $.fn.annotateImage.load(image);
+        $.ajax({
+        	url: image.getUrl,
+        	dataType: "json",
+        	type: 'post',
+        	data: image.ajaxData,
+        	success: function(data) {
+            	image.notes = data;
+            	$.fn.annotateImage.load(image);
+        	}
         });
     };
 
@@ -141,26 +155,38 @@
         ///	<summary>
         ///		Creates a Save button on the editable note.
         ///	</summary>
-        var ok = $('<a class="image-annotate-edit-ok">OK</a>');
+        var ok = $('<a class="image-annotate-edit-ok">'+image.labelOk+'</a>');
 
         ok.click(function() {
             var form = $('#image-annotate-edit-form form');
             var text = $('#image-annotate-text').val();
             $.fn.annotateImage.appendPosition(form, editable)
             image.mode = 'view';
-
+			var dataAjax = image.ajaxData;
+			var formArray = form.serializeArray();
+			$.each(formArray, function(i,e){
+				if (dataAjax[e.name] !== undefined) {
+            		if (!dataAjax[e.name].push) {
+                		dataAjax[e.name] = [dataAjax[e.name]];
+        			}
+            		dataAjax[e.name].push(e.value || '');
+        		} else {
+            		dataAjax[e.name] = e.value || '';
+        		}	
+			});
             // Save via AJAX
             if (image.useAjax) {
                 $.ajax({
                     url: image.saveUrl,
-                    data: form.serialize(),
+                    dataType: "json",
+                    type: "post",
+                    data: dataAjax,
                     error: function(e) { alert("An error occured saving that note.") },
                     success: function(data) {
-				if (data.annotation_id != undefined) {
-					editable.note.id = data.annotation_id;
-				}
-		    },
-                    dataType: "json"
+						if (data.annotation_id != undefined) {
+							editable.note.id = data.annotation_id;
+						}
+		    		}
                 });
             }
 
@@ -183,7 +209,7 @@
         ///	<summary>
         ///		Creates a Cancel button on the editable note.
         ///	</summary>
-        var cancel = $('<a class="image-annotate-edit-close">Cancel</a>');
+        var cancel = $('<a class="image-annotate-edit-close">'+image.labelCancel+'</a>');
         cancel.click(function() {
             editable.destroy();
             image.mode = 'view';
@@ -380,16 +406,29 @@
             $.fn.annotateImage.createSaveButton(editable, this.image, annotation);
 
             // Add the delete button
-            var del = $('<a class="image-annotate-edit-delete">Delete</a>');
+            var del = $('<a class="image-annotate-edit-delete">'+this.image.labelDelete+'</a>');
             del.click(function() {
                 var form = $('#image-annotate-edit-form form');
 
                 $.fn.annotateImage.appendPosition(form, editable)
-
+				var dataAjax = annotation.image.ajaxData;
+				var formArray = form.serializeArray();
+				$.each(formArray, function(i,e){
+					if (dataAjax[e.name] !== undefined) {
+	            		if (!dataAjax[e.name].push) {
+	                		dataAjax[e.name] = [dataAjax[e.name]];
+	        			}
+	            		dataAjax[e.name].push(e.value || '');
+	        		} else {
+	            		dataAjax[e.name] = e.value || '';
+	        		}	
+				});
                 if (annotation.image.useAjax) {
                     $.ajax({
                         url: annotation.image.deleteUrl,
-                        data: form.serialize(),
+                        dataType: "json",
+                        type: "post",
+                        data: dataAjax,
                         error: function(e) { alert("An error occured deleting that note.") }
                     });
                 }
